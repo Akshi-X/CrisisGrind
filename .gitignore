@@ -1,0 +1,35 @@
+# Miscellaneous
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+Thumbs.db
+
+# IDE
+*.iml
+*.ipr
+*.iws
+.idea/
+# .vscode/  # uncomment if you don't want to share VS Code settings
+
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Build output (Vite, etc.)
+dist/
+build/
+
+# Debug / logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
