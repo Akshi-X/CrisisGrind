@@ -14,7 +14,8 @@ const Navbar = () => {
         <nav className="navbar">
             <div className="navbar-inner">
                 <Link to="/" className="navbar-logo">
-                    Feed<span>Forward</span>
+                    <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/uploads/logo.webp`} alt="" className="navbar-logo-img" />
+                    Crisis<span>Grid</span>
                 </Link>
                 <div className="navbar-actions">
                     {user ? (

@@ -33,7 +33,7 @@ const geocodeAddress = async (address) => {
     try {
         const response = await axios.get('https://nominatim.openstreetmap.org/search', {
             params: { q: address, format: 'json', limit: 1 },
-            headers: { 'User-Agent': 'FeedForward-App/1.0' },
+            headers: { 'User-Agent': 'CrisisGrid-App/1.0' },
             timeout: 8000,
         });
         if (response.data && response.data.length > 0) {

@@ -1,4 +1,4 @@
-# FeedForward — AI Food Rescue Platform
+# CrisisGrid — AI Food Rescue Platform
 
 This project has been upgraded from a Flutter mobile app to a **Modern Full-Stack Web Application**.
 
@@ -10,12 +10,12 @@ This project has been upgraded from a Flutter mobile app to a **Modern Full-Stac
 - **Maps**: Leaflet (OpenStreetMap)
 
 ## 📁 Getting Started
-All source code and documentation are now located in the `feedforward-web/` directory.
+All source code and documentation are now located in the `crisisgrid-web/` directory.
 
-1. **Backend**: `feedforward-web/backend/`
-2. **Frontend**: `feedforward-web/frontend/`
+1. **Backend**: `crisisgrid-web/backend/`
+2. **Frontend**: `crisisgrid-web/frontend/`
 
-Refer to **[feedforward-web/README.md](feedforward-web/README.md)** for detailed installation and startup instructions.
+Refer to **[crisisgrid-web/README.md](crisisgrid-web/README.md)** for detailed installation and startup instructions.
 
 ---
 *Legacy mobile code has been removed to ensure a clean, production-ready workspace.*

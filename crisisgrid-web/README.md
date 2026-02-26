@@ -1,4 +1,4 @@
-# FeedForward – AI-Powered Food Rescue Platform
+# CrisisGrid – AI-Powered Food Rescue Platform
 
 > **React + Node.js + MongoDB Atlas + Groq LLaMA 3.1**
 
@@ -15,7 +15,7 @@
 
 Edit `backend/.env`:
 ```
-MONGO_URI=mongodb+srv://<user>:<pass>@cluster0.xxxxx.mongodb.net/feedforward?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://<user>:<pass>@cluster0.xxxxx.mongodb.net/crisisgrid?retryWrites=true&w=majority
 JWT_SECRET=your_random_secret_string
 GROQ_API_KEY=your_groq_key_here   # optional
 PORT=5000
@@ -42,7 +42,7 @@ npm run dev
 ## 📁 Project Structure
 
 ```
-feedforward-web/
+crisisgrid-web/
 ├── backend/
 │   ├── models/          # User.js, Donation.js (Mongoose + 2dsphere)
 │   ├── routes/          # auth.js, donations.js, ai.js

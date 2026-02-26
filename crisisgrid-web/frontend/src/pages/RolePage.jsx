@@ -11,7 +11,7 @@ const RolePage = () => {
                     Who are you?
                 </h1>
                 <p style={{ color: 'var(--text-secondary)', maxWidth: '400px', margin: '0 auto' }}>
-                    Join the FeedForward network — whether you have surplus food or need it.
+                    Join the CrisisGrid network — whether you have surplus food or need it.
                 </p>
                 <div className="role-cards">
                     <div className="role-card" onClick={() => navigate('/auth/donor')}>

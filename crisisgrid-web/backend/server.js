@@ -29,7 +29,7 @@ app.use('/api/ai', require('./routes/ai'));
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'FeedForward API is running' });
+  res.json({ status: 'ok', message: 'CrisisGrid API is running' });
 });
 
 // Global error handler
@@ -46,7 +46,7 @@ mongoose
   .then(() => {
     console.log('✅ MongoDB connected');
     app.listen(PORT, () => {
-      console.log(`🚀 FeedForward API running on http://localhost:${PORT}`);
+      console.log(`🚀 CrisisGrid API running on http://localhost:${PORT}`);
     });
   })
   .catch((err) => {

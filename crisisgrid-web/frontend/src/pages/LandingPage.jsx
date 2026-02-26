@@ -25,7 +25,7 @@ const LandingPage = () => {
                     <span className="accent">to Waste.</span>
                 </h1>
                 <p className="hero-subtitle">
-                    FeedForward connects food donors with NGOs using AI-powered natural language search
+                    CrisisGrid connects food donors with NGOs using AI-powered natural language search
                     and real-time geolocation matching — orchestrating food logistics, not just listings.
                 </p>
                 <div className="hero-cta">
@@ -34,6 +34,9 @@ const LandingPage = () => {
                     </Link>
                     <Link to="/auth/ngo" className="btn btn-secondary btn-lg">
                         🏥 I'm an NGO
+                    </Link>
+                    <Link to="/auth/delivery" className="btn btn-delivery btn-lg">
+                        🚚 Delivery Partner Login
                     </Link>
                 </div>
 
