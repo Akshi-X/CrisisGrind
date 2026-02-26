@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getAvailableMissions, acceptMission, updateMissionStatus, getDeliveryHistory, getActiveMission } from '../api/index';
+import { getAvailableMissions, acceptMission, updateMissionStatus, getDeliveryHistory, getActiveMission, getMyAnalytics, updateMissionLocation } from '../api/index';
 import { useAuth } from '../context/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -25,6 +25,12 @@ const redIcon = new L.Icon({
     iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
 });
 
+const greenIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [30, 48], iconAnchor: [15, 48], popupAnchor: [1, -40],
+});
+
 const DeliveryDashboard = () => {
     const { user } = useAuth();
     const [tab, setTab] = useState('available'); // 'available', 'active', 'history'
@@ -33,6 +39,7 @@ const DeliveryDashboard = () => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
+    const [analytics, setAnalytics] = useState(null);
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
@@ -55,6 +62,7 @@ const DeliveryDashboard = () => {
                 setActiveMission(activeRes.data);
                 setTab('active');
             }
+            getMyAnalytics().then((r) => setAnalytics(r.data)).catch(() => {});
         } catch (err) {
             console.error('Error fetching dashboard data:', err);
         } finally {
@@ -75,6 +83,32 @@ const DeliveryDashboard = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Real-time location: send driver position every 10s when on active mission
+    useEffect(() => {
+        if (!activeMission?._id) return;
+        const sendLocation = (pos) => {
+            const { latitude: lat, longitude: lng } = pos.coords;
+            updateMissionLocation(activeMission._id, lat, lng).catch(() => {});
+        };
+        const watchId = navigator.geolocation?.watchPosition?.(sendLocation, () => {}, { enableHighAccuracy: true, maximumAge: 8000 });
+        const intervalId = setInterval(() => {
+            navigator.geolocation?.getCurrentPosition?.(sendLocation, () => {}, { maximumAge: 15000 });
+        }, 10000);
+        return () => {
+            if (watchId != null) navigator.geolocation?.clearWatch?.(watchId);
+            clearInterval(intervalId);
+        };
+    }, [activeMission?._id]);
+
+    // Poll active mission every 5s to get updated driver location for map
+    useEffect(() => {
+        if (!activeMission?._id) return;
+        const t = setInterval(() => {
+            getActiveMission().then((r) => { if (r.data) setActiveMission(r.data); }).catch(() => {});
+        }, 5000);
+        return () => clearInterval(t);
+    }, [activeMission?._id]);
 
     const handleAccept = async (id) => {
         try {
@@ -142,6 +176,12 @@ const DeliveryDashboard = () => {
                     <div>
                         <h1 className="dashboard-title">🚴 Logistics Portal</h1>
                         <p className="dashboard-subtitle">Active Support for {user?.name}</p>
+                        {analytics && (
+                            <div style={{ display: 'flex', gap: '20px', marginTop: 8, flexWrap: 'wrap' }}>
+                                <span style={{ color: 'var(--text-muted)' }}><strong style={{ color: 'var(--text-primary)' }}>{analytics.delivered}</strong> delivered</span>
+                                <span style={{ color: 'var(--text-muted)' }}><strong style={{ color: 'var(--text-primary)' }}>{analytics.mealsDelivered || 0}</strong> meals</span>
+                            </div>
+                        )}
                     </div>
                     <div className="vehicle-badge">
                         {user?.vehicleType === 'bike' ? '🏍️' : user?.vehicleType === 'car' ? '🚗' : '🚐'}
@@ -233,24 +273,41 @@ const DeliveryDashboard = () => {
                                         </div>
 
                                         <div className="card" style={{ height: '400px', overflow: 'hidden', borderRadius: '20px' }}>
+                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8 }}>📍 Your location updates in real time. Route shows pickup → you → drop.</p>
                                             <MapContainer
                                                 center={[activeMission.pickupLocation?.coordinates[1] || 13.0827, activeMission.pickupLocation?.coordinates[0] || 80.2707]}
                                                 zoom={13}
-                                                style={{ height: '100%', width: '100%' }}
+                                                style={{ height: 'calc(100% - 28px)', width: '100%' }}
                                             >
                                                 <TileLayer
-                                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                                                    attribution='&copy; OpenStreetMap'
                                                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                                                 />
                                                 <Marker position={[activeMission.pickupLocation?.coordinates[1], activeMission.pickupLocation?.coordinates[0]]} icon={blueIcon}>
                                                     <Popup>Pickup: {activeMission.donorId?.name}</Popup>
                                                 </Marker>
-                                                {/* If NGO has coords, show them */}
-                                                {activeMission.claimedBy?.location?.coordinates && (
+                                                {activeMission.deliveryPartnerLocation?.coordinates?.length === 2 && (
+                                                    <Marker position={[activeMission.deliveryPartnerLocation.coordinates[1], activeMission.deliveryPartnerLocation.coordinates[0]]} icon={greenIcon}>
+                                                        <Popup>🚚 You (live)</Popup>
+                                                    </Marker>
+                                                )}
+                                                {activeMission.claimedBy?.location?.coordinates?.length === 2 && (
                                                     <Marker position={[activeMission.claimedBy.location.coordinates[1], activeMission.claimedBy.location.coordinates[0]]} icon={redIcon}>
                                                         <Popup>Drop: {activeMission.claimedBy.organizationName}</Popup>
                                                     </Marker>
                                                 )}
+                                                <Polyline
+                                                    positions={[
+                                                        [activeMission.pickupLocation?.coordinates[1], activeMission.pickupLocation?.coordinates[0]],
+                                                        ...(activeMission.deliveryPartnerLocation?.coordinates?.length === 2
+                                                            ? [[activeMission.deliveryPartnerLocation.coordinates[1], activeMission.deliveryPartnerLocation.coordinates[0]]]
+                                                            : []),
+                                                        ...(activeMission.claimedBy?.location?.coordinates?.length === 2
+                                                            ? [[activeMission.claimedBy.location.coordinates[1], activeMission.claimedBy.location.coordinates[0]]]
+                                                            : []),
+                                                    ].filter((p) => p[0] != null && p[1] != null)}
+                                                    pathOptions={{ color: 'var(--orange)', weight: 5, opacity: 0.9, dashArray: '12, 18', className: 'animated-route-line' }}
+                                                />
                                             </MapContainer>
                                         </div>
                                     </div>

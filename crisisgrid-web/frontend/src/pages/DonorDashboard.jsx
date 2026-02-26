@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react';
-import { createDonation, getMyDonations } from '../api/index';
+import { createDonation, updateDonation, deleteDonation, getMyDonations, extendExpiry, getMyAnalytics } from '../api/index';
 import { useAuth } from '../context/AuthContext';
 
 const DonorDashboard = () => {
     const { user } = useAuth();
     const [donations, setDonations] = useState([]);
+    const [analytics, setAnalytics] = useState(null);
     const [loadingList, setLoadingList] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [toast, setToast] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [image, setImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [editForm, setEditForm] = useState({ foodName: '', description: '', foodType: 'veg', servings: '', address: '', pickupTimeWindow: '', expiryHours: '24' });
 
     const [form, setForm] = useState({
-        foodName: '', description: '', foodType: 'veg', servings: '', address: '',
+        foodName: '', description: '', foodType: 'veg', servings: '', address: '', pickupTimeWindow: '', expiryHours: '24',
     });
     const [formError, setFormError] = useState('');
 
@@ -27,6 +30,7 @@ const DonorDashboard = () => {
             .then((res) => setDonations(res.data))
             .catch(() => { })
             .finally(() => setLoadingList(false));
+        getMyAnalytics().then((res) => setAnalytics(res.data)).catch(() => {});
     }, []);
 
     const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
@@ -36,6 +40,52 @@ const DonorDashboard = () => {
         if (file) {
             setImage(file);
             setImagePreview(URL.createObjectURL(file));
+        }
+    };
+
+    const startEdit = (d) => {
+        setEditingId(d._id);
+        const expiryMs = d.expiryTime ? new Date(d.expiryTime).getTime() - Date.now() : 24 * 60 * 60 * 1000;
+        const hours = Math.round(expiryMs / (60 * 60 * 1000)) || 24;
+        const expiryHours = [1, 3, 6, 12, 24, 48].includes(hours) ? String(hours) : '24';
+        setEditForm({ foodName: d.foodName, description: d.description, foodType: d.foodType, servings: String(d.servings), address: d.address, pickupTimeWindow: d.pickupTimeWindow || '', expiryHours });
+    };
+    const handleEditChange = (e) => setEditForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        if (!editingId) return;
+        setSubmitting(true);
+        try {
+            const formData = new FormData();
+            Object.keys(editForm).forEach((k) => formData.append(k, editForm[k]));
+            const res = await updateDonation(editingId, formData);
+            setDonations((prev) => prev.map((x) => (x._id === editingId ? res.data : x)));
+            setEditingId(null);
+            showToast('Donation updated');
+        } catch (err) {
+            showToast(err.response?.data?.message || 'Update failed', 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+    const handleDelete = async (id) => {
+        if (!window.confirm('Remove this donation?')) return;
+        try {
+            await deleteDonation(id);
+            setDonations((prev) => prev.filter((x) => x._id !== id));
+            getMyAnalytics().then((r) => setAnalytics(r.data)).catch(() => {});
+            showToast('Donation removed');
+        } catch (err) {
+            showToast(err.response?.data?.message || 'Delete failed', 'error');
+        }
+    };
+    const handleExtend = async (id) => {
+        try {
+            const res = await extendExpiry(id);
+            setDonations((prev) => prev.map((x) => (x._id === id ? res.data : x)));
+            showToast('Expiry extended by 1 hour');
+        } catch (err) {
+            showToast(err.response?.data?.message || 'Extend failed', 'error');
         }
     };
 
@@ -54,10 +104,11 @@ const DonorDashboard = () => {
 
             const res = await createDonation(formData);
             setDonations((prev) => [res.data, ...prev]);
-            setForm({ foodName: '', description: '', foodType: 'veg', servings: '', address: '' });
+            setForm({ foodName: '', description: '', foodType: 'veg', servings: '', address: '', pickupTimeWindow: '', expiryHours: '24' });
             setImage(null);
             setImagePreview(null);
             setShowForm(false);
+            getMyAnalytics().then((r) => setAnalytics(r.data)).catch(() => {});
             showToast('🎉 Donation listed successfully!');
         } catch (err) {
             setFormError(err.response?.data?.message || 'Failed to submit. Check your address.');
@@ -127,6 +178,23 @@ const DonorDashboard = () => {
                                         placeholder="Full address including area, city, state"
                                         value={form.address} onChange={handleChange} required />
                                 </div>
+                                <div className="form-group">
+                                    <label className="form-label">Pickup time window</label>
+                                    <input className="form-input" name="pickupTimeWindow"
+                                        placeholder="e.g. 2:00 PM - 4:00 PM"
+                                        value={form.pickupTimeWindow} onChange={handleChange} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Expires in</label>
+                                    <select className="form-input" name="expiryHours" value={form.expiryHours} onChange={handleChange}>
+                                        <option value="1">1 hour</option>
+                                        <option value="3">3 hours</option>
+                                        <option value="6">6 hours</option>
+                                        <option value="12">12 hours</option>
+                                        <option value="24">24 hours</option>
+                                        <option value="48">48 hours</option>
+                                    </select>
+                                </div>
                                 <div className="form-group dashboard-full">
                                     <label className="form-label">Food Photo</label>
                                     <div className="image-upload-wrap">
@@ -154,6 +222,15 @@ const DonorDashboard = () => {
                     </div>
                 )}
 
+                {/* Impact analytics */}
+                {analytics && (
+                    <div className="card card-body" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '24px' }}>
+                        <div><strong style={{ color: 'var(--text-muted)' }}>Listed</strong><div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{analytics.listed}</div></div>
+                        <div><strong style={{ color: 'var(--text-muted)' }}>Claimed</strong><div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{analytics.claimed}</div></div>
+                        <div><strong style={{ color: 'var(--text-muted)' }}>Meals rescued</strong><div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{analytics.mealsRescued || 0}</div></div>
+                    </div>
+                )}
+
                 {/* Donations list */}
                 <div>
                     <div className="results-header">
@@ -173,40 +250,53 @@ const DonorDashboard = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                             {donations.map((d) => (
                                 <div key={d._id} className="donation-card fade-in">
-                                    <div className="donation-card-top">
-                                        {d.imageUrl && (
-                                            <img
-                                                src={`http://localhost:5000${d.imageUrl}`}
-                                                alt={d.foodName}
-                                                className="donation-card-img"
-                                            />
-                                        )}
-                                        <div className="donation-card-content">
-                                            <div className="donation-card-title">{d.foodName}</div>
-                                            <div className="donation-card-meta">{d.description}</div>
-                                        </div>
-                                        <div className="donation-card-badges">
-                                            <span className={`badge ${d.status === 'available' ? 'badge-available' : 'badge-claimed'}`}>
-                                                {d.status === 'available' ? '🟢 Available' : '🟠 Claimed'}
-                                            </span>
-                                            <span className={`badge ${d.foodType === 'veg' ? 'badge-veg' : 'badge-nonveg'}`}>
-                                                {d.foodType === 'veg' ? '🥗 Veg' : '🍗 Non-Veg'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="donation-card-footer">
-                                        <div className="donation-card-details">
-                                            <div className="donation-detail">
-                                                👥 <strong>{d.servings}</strong> servings
+                                    {editingId === d._id ? (
+                                        <form onSubmit={handleEditSubmit} style={{ padding: '12px 0' }}>
+                                            <div className="dashboard-grid" style={{ marginBottom: 12 }}>
+                                                <div className="form-group"><label className="form-label">Food Name</label><input className="form-input" name="foodName" value={editForm.foodName} onChange={handleEditChange} /></div>
+                                                <div className="form-group"><label className="form-label">Servings</label><input className="form-input" name="servings" type="number" min="1" value={editForm.servings} onChange={handleEditChange} /></div>
+                                                <div className="form-group dashboard-full"><label className="form-label">Description</label><textarea className="form-input" name="description" rows="2" value={editForm.description} onChange={handleEditChange} /></div>
+                                                <div className="form-group dashboard-full"><label className="form-label">Address</label><textarea className="form-input" name="address" rows="2" value={editForm.address} onChange={handleEditChange} /></div>
+                                                <div className="form-group"><label className="form-label">Pickup time</label><input className="form-input" name="pickupTimeWindow" value={editForm.pickupTimeWindow} onChange={handleEditChange} placeholder="e.g. 2-4 PM" /></div>
+                                                <div className="form-group"><label className="form-label">Expires in</label><select className="form-input" name="expiryHours" value={editForm.expiryHours} onChange={handleEditChange}><option value="1">1h</option><option value="3">3h</option><option value="6">6h</option><option value="12">12h</option><option value="24">24h</option><option value="48">48h</option></select></div>
                                             </div>
-                                            <div className="donation-detail">
-                                                📍 {d.address?.slice(0, 40)}{d.address?.length > 40 ? '...' : ''}
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>Save</button>
+                                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
                                             </div>
-                                        </div>
-                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                            {new Date(d.createdAt).toLocaleDateString()}
-                                        </div>
-                                    </div>
+                                        </form>
+                                    ) : (
+                                        <>
+                                            <div className="donation-card-top">
+                                                {d.imageUrl && (
+                                                    <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${d.imageUrl}`} alt={d.foodName} className="donation-card-img" />
+                                                )}
+                                                <div className="donation-card-content">
+                                                    <div className="donation-card-title">{d.foodName}</div>
+                                                    <div className="donation-card-meta">{d.description}</div>
+                                                </div>
+                                                <div className="donation-card-badges">
+                                                    <span className={`badge ${d.status === 'available' ? 'badge-available' : 'badge-claimed'}`}>{d.status === 'available' ? '🟢 Available' : '🟠 Claimed'}</span>
+                                                    <span className={`badge ${d.foodType === 'veg' ? 'badge-veg' : 'badge-nonveg'}`}>{d.foodType === 'veg' ? '🥗 Veg' : '🍗 Non-Veg'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="donation-card-footer">
+                                                <div className="donation-card-details">
+                                                    <div className="donation-detail">👥 <strong>{d.servings}</strong> servings</div>
+                                                    <div className="donation-detail">📍 {d.address?.slice(0, 40)}{d.address?.length > 40 ? '...' : ''}</div>
+                                                    {d.pickupTimeWindow && <div className="donation-detail">🕐 {d.pickupTimeWindow}</div>}
+                                                </div>
+                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{new Date(d.createdAt).toLocaleDateString()} · Expires {new Date(d.expiryTime).toLocaleDateString()}</div>
+                                            </div>
+                                            {d.status === 'available' && (
+                                                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                                                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => startEdit(d)}>Edit</button>
+                                                    <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDelete(d._id)}>Remove</button>
+                                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleExtend(d._id)}>Extend 1h</button>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             ))}
                         </div>

@@ -20,7 +20,7 @@ const RolePage = () => {
                         <p className="role-desc">
                             Restaurant, caterer, or individual with surplus food to share
                         </p>
-                        <span className="badge badge-available" style={{ marginTop: '4px' }}>Start Saving Food</span>
+                        <span className="role-card-badge role-card-badge-donor">Start Saving Food</span>
                     </div>
                     <div className="role-card" onClick={() => navigate('/auth/ngo')}>
                         <div className="role-icon">🏥</div>
@@ -28,7 +28,7 @@ const RolePage = () => {
                         <p className="role-desc">
                             Organization that distributes food to people in need
                         </p>
-                        <span className="badge badge-claimed" style={{ marginTop: '4px', background: 'rgba(59,130,246,0.15)', color: 'var(--blue)', borderColor: 'rgba(59,130,246,0.3)' }}>Find Food Now</span>
+                        <span className="role-card-badge role-card-badge-ngo">Find Food Now</span>
                     </div>
                     <div className="role-card" onClick={() => navigate('/auth/delivery')}>
                         <div className="role-icon">🚚</div>
@@ -36,7 +36,7 @@ const RolePage = () => {
                         <p className="role-desc">
                             Help transport food from donors to NGOs
                         </p>
-                        <span className="badge badge-available" style={{ marginTop: '4px', background: 'rgba(16,185,129,0.15)', color: 'var(--green)', borderColor: 'rgba(16,185,129,0.3)' }}>Deliver & Earn</span>
+                        <span className="role-card-badge role-card-badge-delivery">Deliver & Serve</span>
                     </div>
                 </div>
             </div>

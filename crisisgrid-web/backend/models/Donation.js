@@ -21,8 +21,14 @@ const donationSchema = new mongoose.Schema(
             default: null
         },
         deliveryPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        deliveryPartnerLocation: {
+            type: { type: String, default: 'Point' },
+            coordinates: { type: [Number], default: null }, // [lng, lat] — real-time driver location
+        },
+        deliveryPartnerLocationAt: { type: Date, default: null },
         expiryTime: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) }, // 24h default
         imageUrl: { type: String, default: null },
+        pickupTimeWindow: { type: String, trim: true, default: null },
     },
     { timestamps: true }
 );

@@ -38,6 +38,9 @@ const LandingPage = () => {
                     <Link to="/auth/delivery" className="btn btn-delivery btn-lg">
                         🚚 Delivery Partner Login
                     </Link>
+                    <Link to="/heatmap" className="btn btn-ghost btn-lg" style={{ marginLeft: 8 }}>
+                        🗺️ Heat Map
+                    </Link>
                 </div>
 
                 {/* Impact Stats */}

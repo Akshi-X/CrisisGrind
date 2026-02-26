@@ -13,6 +13,9 @@ const register = async (req, res) => {
         if (!name || !email || !password || !role) {
             return res.status(400).json({ message: 'Please provide name, email, password, and role' });
         }
+        if (!['donor', 'ngo', 'delivery'].includes(role)) {
+            return res.status(400).json({ message: 'Invalid role' });
+        }
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {

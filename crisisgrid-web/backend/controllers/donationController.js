@@ -1,5 +1,6 @@
 const axios = require('axios');
 const Donation = require('../models/Donation');
+const { createNotification } = require('./notificationController');
 const multer = require('multer');
 const path = require('path');
 
@@ -55,13 +56,12 @@ const createDonation = (req, res) => {
         }
 
         try {
-            const { foodName, description, foodType, servings, address } = req.body;
+            const { foodName, description, foodType, servings, address, pickupTimeWindow, expiryHours } = req.body;
 
             if (!foodName || !description || !foodType || !servings || !address) {
                 return res.status(400).json({ message: 'All fields are required' });
             }
 
-            // Geocode the address
             const coords = await geocodeAddress(address);
             if (!coords) {
                 return res.status(400).json({
@@ -70,6 +70,8 @@ const createDonation = (req, res) => {
             }
 
             const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+            const hours = [1, 3, 6, 12, 24, 48].includes(parseInt(expiryHours)) ? parseInt(expiryHours) : 24;
+            const expiryTime = new Date(Date.now() + hours * 60 * 60 * 1000);
 
             const donation = await Donation.create({
                 donorId: req.user._id,
@@ -80,9 +82,11 @@ const createDonation = (req, res) => {
                 address,
                 pickupLocation: {
                     type: 'Point',
-                    coordinates: [coords.lng, coords.lat], // GeoJSON: [lng, lat]
+                    coordinates: [coords.lng, coords.lat],
                 },
                 imageUrl,
+                pickupTimeWindow: pickupTimeWindow || null,
+                expiryTime,
             });
 
             res.status(201).json(donation);
@@ -100,7 +104,7 @@ const searchDonations = async (req, res) => {
 
         console.log(`🔍 NGO Search searching near [${lat}, ${lng}] with filters:`, { foodType, minServings });
 
-        const matchStage = { status: 'available' };
+        const matchStage = { status: 'available', expiryTime: { $gt: new Date() } };
         if (foodType && (foodType === 'veg' || foodType === 'non-veg')) {
             matchStage.foodType = foodType;
         }
@@ -141,6 +145,7 @@ const searchDonations = async (req, res) => {
                     distance: 1,
                     createdAt: 1,
                     expiryTime: 1,
+                    pickupTimeWindow: 1,
                     pickupLocation: 1,
                     'donor.name': 1,
                     'donor.phone': 1,
@@ -167,11 +172,110 @@ const searchDonations = async (req, res) => {
     }
 };
 
+// @PATCH /api/donations/:id — donor updates own donation (only when available)
+const updateDonation = (req, res) => {
+    upload(req, res, async (err) => {
+        if (err) return res.status(400).json({ message: err.message });
+        try {
+            const { id } = req.params;
+            const { foodName, description, foodType, servings, address, pickupTimeWindow } = req.body;
+            const donation = await Donation.findOne({ _id: id, donorId: req.user._id, status: 'available' });
+            if (!donation) return res.status(404).json({ message: 'Donation not found or not editable' });
+
+            const updates = {};
+            if (foodName !== undefined) updates.foodName = foodName;
+            if (description !== undefined) updates.description = description;
+            if (foodType !== undefined) updates.foodType = foodType;
+            if (servings !== undefined) updates.servings = parseInt(servings);
+            if (pickupTimeWindow !== undefined) updates.pickupTimeWindow = pickupTimeWindow || null;
+            if (req.file) updates.imageUrl = `/uploads/${req.file.filename}`;
+            if (req.body.expiryHours !== undefined) {
+                const h = [1, 3, 6, 12, 24, 48].includes(parseInt(req.body.expiryHours)) ? parseInt(req.body.expiryHours) : 24;
+                updates.expiryTime = new Date(Date.now() + h * 60 * 60 * 1000);
+            }
+
+            if (address !== undefined && address !== donation.address) {
+                const coords = await geocodeAddress(address);
+                if (!coords) return res.status(400).json({ message: 'Could not geocode address' });
+                updates.address = address;
+                updates.pickupLocation = { type: 'Point', coordinates: [coords.lng, coords.lat] };
+            }
+
+            const updated = await Donation.findByIdAndUpdate(id, updates, { new: true });
+            res.json(updated);
+        } catch (err) {
+            console.error('Update donation error:', err);
+            res.status(500).json({ message: err.message });
+        }
+    });
+};
+
+// @DELETE /api/donations/:id — donor removes own donation (only when available)
+const deleteDonation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const donation = await Donation.findOneAndDelete({ _id: id, donorId: req.user._id, status: 'available' });
+        if (!donation) return res.status(404).json({ message: 'Donation not found or cannot be removed' });
+        res.json({ message: 'Donation removed' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @PATCH /api/donations/:id/release — NGO releases claim (only before delivery picks up)
+const releaseClaim = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const donation = await Donation.findOneAndUpdate(
+            { _id: id, claimedBy: req.user._id, deliveryStatus: 'waiting_for_delivery' },
+            { status: 'available', claimedBy: null, claimedAt: null, deliveryStatus: null },
+            { new: true }
+        );
+        if (!donation) return res.status(404).json({ message: 'Cannot release: not your claim or delivery already accepted' });
+        await createNotification(
+            donation.donorId,
+            'claim_released',
+            'Claim released',
+            `The claim on "${donation.foodName}" was released. It is available again.`,
+            donation._id
+        );
+        res.json({ message: 'Claim released', donation });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @PATCH /api/donations/:id/extend — donor extends expiry by 24h
+const extendExpiry = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const donation = await Donation.findOne({ _id: id, donorId: req.user._id });
+        if (!donation) return res.status(404).json({ message: 'Donation not found' });
+        const newExpiry = new Date(Math.max(Date.now(), new Date(donation.expiryTime).getTime()) + 1 * 60 * 60 * 1000); // extend by 1 hour
+        const updated = await Donation.findByIdAndUpdate(id, { expiryTime: newExpiry }, { new: true });
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
 // @GET /api/donations/my — donor's own donations
 const getMyDonations = async (req, res) => {
     try {
         const donations = await Donation.find({ donorId: req.user._id }).sort({ createdAt: -1 });
         res.json(donations);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @GET /api/donations/claims — NGO's claimed donations
+const getMyClaims = async (req, res) => {
+    try {
+        const claims = await Donation.find({ claimedBy: req.user._id })
+            .populate('donorId', 'name phone address')
+            .sort({ claimedAt: -1 });
+        res.json(claims);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -199,10 +303,93 @@ const claimDonation = async (req, res) => {
                 message: 'This donation has already been claimed by another NGO.',
             });
         }
-
+        await createNotification(
+            donation.donorId,
+            'donation_claimed',
+            'Donation claimed',
+            `Your donation "${donation.foodName}" was claimed by an NGO.`,
+            donation._id
+        );
         res.json({ message: 'Donation claimed successfully', donation });
     } catch (err) {
         console.error('Claim donation error:', err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @GET /api/donations/analytics/me — impact for current user (donor/ngo/delivery)
+const getMyAnalytics = async (req, res) => {
+    try {
+        const role = req.user.role;
+        if (role === 'donor') {
+            const [listed, claimed, servings] = await Promise.all([
+                Donation.countDocuments({ donorId: req.user._id }),
+                Donation.countDocuments({ donorId: req.user._id, status: 'claimed' }),
+                Donation.aggregate([{ $match: { donorId: req.user._id, status: 'claimed' } }, { $group: { _id: null, total: { $sum: '$servings' } } }]),
+            ]);
+            return res.json({ listed, claimed, mealsRescued: servings[0]?.total || 0 });
+        }
+        if (role === 'ngo') {
+            const [claimed, servings] = await Promise.all([
+                Donation.countDocuments({ claimedBy: req.user._id }),
+                Donation.aggregate([{ $match: { claimedBy: req.user._id } }, { $group: { _id: null, total: { $sum: '$servings' } } }]),
+            ]);
+            return res.json({ claimed, mealsRescued: servings[0]?.total || 0 });
+        }
+        if (role === 'delivery') {
+            const delivered = await Donation.countDocuments({ deliveryPartnerId: req.user._id, deliveryStatus: 'delivered' });
+            const servings = await Donation.aggregate([
+                { $match: { deliveryPartnerId: req.user._id, deliveryStatus: 'delivered' } },
+                { $group: { _id: null, total: { $sum: '$servings' } } },
+            ]);
+            return res.json({ delivered, mealsDelivered: servings[0]?.total || 0 });
+        }
+        res.json({});
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @GET /api/donations/map-data — heat map: donor locations (available) + request/claim locations
+const getMapData = async (req, res) => {
+    try {
+        const donations = await Donation.find({
+            pickupLocation: { $exists: true },
+            'pickupLocation.coordinates.0': { $exists: true },
+        }).select('pickupLocation status');
+        const donors = []; // available donation pickups [lat, lng, intensity]
+        const requests = []; // claimed donation pickups (demand) [lat, lng, intensity]
+        donations.forEach((d) => {
+            const coords = d.pickupLocation?.coordinates;
+            if (!coords || coords.length < 2) return;
+            const lat = coords[1];
+            const lng = coords[0];
+            if (d.status === 'available') donors.push([lat, lng, 0.8]);
+            else requests.push([lat, lng, 0.8]);
+        });
+        res.json({ donors, requests });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// @PATCH /api/donations/missions/:id/location — delivery partner updates real-time location
+const updateMissionLocation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { lat, lng } = req.body;
+        if (lat == null || lng == null) return res.status(400).json({ message: 'lat and lng required' });
+        const mission = await Donation.findOneAndUpdate(
+            { _id: id, deliveryPartnerId: req.user._id, deliveryStatus: { $in: ['accepted_by_delivery', 'picked_up'] } },
+            {
+                deliveryPartnerLocation: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
+                deliveryPartnerLocationAt: new Date(),
+            },
+            { new: true }
+        );
+        if (!mission) return res.status(404).json({ message: 'Mission not found' });
+        res.json({ ok: true });
+    } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
@@ -262,7 +449,8 @@ const acceptMission = async (req, res) => {
         if (!mission) {
             return res.status(409).json({ message: 'Mission already accepted by another partner' });
         }
-
+        await createNotification(mission.donorId._id || mission.donorId, 'mission_accepted', 'Delivery accepted', `A delivery partner accepted pickup for "${mission.foodName}".`, mission._id);
+        await createNotification(mission.claimedBy._id || mission.claimedBy, 'mission_accepted', 'Delivery accepted', `A delivery partner is on the way for "${mission.foodName}".`, mission._id);
         res.json(mission);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -284,7 +472,12 @@ const updateMissionStatus = async (req, res) => {
         if (!mission) {
             return res.status(404).json({ message: 'Active mission not found' });
         }
-
+        if (status === 'delivered') {
+            const donorId = mission.donorId && mission.donorId._id ? mission.donorId._id : mission.donorId;
+            const ngoId = mission.claimedBy && mission.claimedBy._id ? mission.claimedBy._id : mission.claimedBy;
+            if (donorId) await createNotification(donorId, 'delivered', 'Delivery completed', `"${mission.foodName}" was delivered to the NGO.`, mission._id);
+            if (ngoId) await createNotification(ngoId, 'delivered', 'Delivery completed', `"${mission.foodName}" has been delivered to you.`, mission._id);
+        }
         res.json(mission);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -323,14 +516,22 @@ const getActiveMission = async (req, res) => {
 
 module.exports = {
     createDonation,
+    updateDonation,
+    deleteDonation,
+    releaseClaim,
+    extendExpiry,
     searchDonations,
     getMyDonations,
+    getMyClaims,
     claimDonation,
+    getMyAnalytics,
     getStats,
     getAvailableMissions,
     acceptMission,
     updateMissionStatus,
     getDeliveryHistory,
     getActiveMission,
+    getMapData,
+    updateMissionLocation,
     geocodeAddress,
 };

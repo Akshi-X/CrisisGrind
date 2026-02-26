@@ -26,6 +26,11 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/donations', require('./routes/donations'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/ratings', require('./routes/ratings'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/saved-searches', require('./routes/savedSearch'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => {

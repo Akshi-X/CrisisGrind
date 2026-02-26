@@ -8,6 +8,8 @@ import AuthPage from './pages/AuthPage';
 import DonorDashboard from './pages/DonorDashboard';
 import NgoDashboard from './pages/NgoDashboard';
 import DeliveryDashboard from './pages/DeliveryDashboard';
+import AdminDashboard from './pages/AdminDashboard';
+import HeatMapPage from './pages/HeatMapPage';
 
 const DashboardRedirect = () => {
   const { user } = useAuth();
@@ -15,6 +17,7 @@ const DashboardRedirect = () => {
   if (user.role === 'donor') return <Navigate to="/donor" replace />;
   if (user.role === 'ngo') return <Navigate to="/ngo" replace />;
   if (user.role === 'delivery') return <Navigate to="/delivery" replace />;
+  if (user.role === 'admin') return <Navigate to="/admin" replace />;
   return <Navigate to="/" replace />;
 };
 
@@ -24,6 +27,7 @@ const AppRoutes = () => {
       <Navbar />
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/heatmap" element={<HeatMapPage />} />
         <Route path="/role" element={<RolePage />} />
         <Route path="/auth/:role" element={<AuthPage />} />
         <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -48,6 +52,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute role="delivery">
               <DeliveryDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminDashboard />
             </ProtectedRoute>
           }
         />

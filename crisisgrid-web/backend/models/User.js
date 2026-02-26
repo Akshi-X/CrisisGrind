@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
         name: { type: String, required: true, trim: true },
         email: { type: String, required: true, unique: true, lowercase: true, trim: true },
         password: { type: String, required: true, minlength: 6 },
-        role: { type: String, enum: ['donor', 'ngo', 'delivery'], required: true },
+        role: { type: String, enum: ['donor', 'ngo', 'delivery', 'admin'], required: true },
         phone: { type: String, trim: true },
         organizationName: { type: String, trim: true }, // NGO only
         vehicleType: { type: String, enum: ['bike', 'car', 'van'], trim: true }, // Delivery Partner
