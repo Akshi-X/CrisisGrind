@@ -14,6 +14,7 @@ const DonorDashboard = () => {
 
     const [form, setForm] = useState({
         foodName: '', description: '', foodType: 'veg', servings: '', address: '',
+        expiryDays: '1', expiryHours: '0',
     });
     const [formError, setFormError] = useState('');
 
@@ -45,6 +46,12 @@ const DonorDashboard = () => {
             setFormError('Please fill all required fields');
             return;
         }
+        const days = parseInt(form.expiryDays) || 0;
+        const hours = parseInt(form.expiryHours) || 0;
+        if (days === 0 && hours === 0) {
+            setFormError('Please set at least 1 hour of expiry time');
+            return;
+        }
         setSubmitting(true);
         setFormError('');
         try {
@@ -54,7 +61,7 @@ const DonorDashboard = () => {
 
             const res = await createDonation(formData);
             setDonations((prev) => [res.data, ...prev]);
-            setForm({ foodName: '', description: '', foodType: 'veg', servings: '', address: '' });
+            setForm({ foodName: '', description: '', foodType: 'veg', servings: '', address: '', expiryDays: '1', expiryHours: '0' });
             setImage(null);
             setImagePreview(null);
             setShowForm(false);
@@ -64,6 +71,19 @@ const DonorDashboard = () => {
         } finally {
             setSubmitting(false);
         }
+    };
+
+    // Helper: compute remaining expiry label
+    const getExpiryLabel = (expiryTime) => {
+        if (!expiryTime) return null;
+        const diffMs = new Date(expiryTime) - Date.now();
+        if (diffMs <= 0) return { label: 'Expired', color: '#ef4444' };
+        const totalHours = Math.floor(diffMs / 3600000);
+        const days = Math.floor(totalHours / 24);
+        const hours = totalHours % 24;
+        const label = days > 0 ? `${days}d ${hours}h left` : `${hours}h left`;
+        const color = totalHours <= 3 ? '#ef4444' : totalHours <= 12 ? '#f97316' : '#22c55e';
+        return { label, color };
     };
 
     return (
@@ -126,6 +146,31 @@ const DonorDashboard = () => {
                                     <textarea className="form-input" name="address" rows="2"
                                         placeholder="Full address including area, city, state"
                                         value={form.address} onChange={handleChange} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">⏰ Food Expiry</label>
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <input
+                                                className="form-input" name="expiryDays" type="number" min="0"
+                                                placeholder="Days"
+                                                value={form.expiryDays} onChange={handleChange}
+                                            />
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block', textAlign: 'center' }}>Days</span>
+                                        </div>
+                                        <span style={{ fontWeight: 700, color: 'var(--text-secondary)', paddingBottom: '20px' }}>+</span>
+                                        <div style={{ flex: 1 }}>
+                                            <input
+                                                className="form-input" name="expiryHours" type="number" min="0" max="23"
+                                                placeholder="Hours"
+                                                value={form.expiryHours} onChange={handleChange}
+                                            />
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block', textAlign: 'center' }}>Hours</span>
+                                        </div>
+                                    </div>
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                                        If only hours entered, days = 0 automatically.
+                                    </p>
                                 </div>
                                 <div className="form-group dashboard-full">
                                     <label className="form-label">Food Photo</label>
@@ -202,6 +247,14 @@ const DonorDashboard = () => {
                                             <div className="donation-detail">
                                                 📍 {d.address?.slice(0, 40)}{d.address?.length > 40 ? '...' : ''}
                                             </div>
+                                            {d.expiryTime && (() => {
+                                                const exp = getExpiryLabel(d.expiryTime);
+                                                return (
+                                                    <div className="donation-detail" style={{ color: exp.color, fontWeight: 600 }}>
+                                                        ⏰ {exp.label}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                                             {new Date(d.createdAt).toLocaleDateString()}

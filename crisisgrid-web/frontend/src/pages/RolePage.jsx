@@ -38,6 +38,14 @@ const RolePage = () => {
                         </p>
                         <span className="badge badge-available" style={{ marginTop: '4px', background: 'rgba(16,185,129,0.15)', color: 'var(--green)', borderColor: 'rgba(16,185,129,0.3)' }}>Deliver & Earn</span>
                     </div>
+                    <div className="role-card" onClick={() => navigate('/auth/government')}>
+                        <div className="role-icon">🏛️</div>
+                        <div className="role-name">Government</div>
+                        <p className="role-desc">
+                            Mark flood zones and road closures on the crisis map
+                        </p>
+                        <span className="badge" style={{ marginTop: '4px', background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>Authorized Access</span>
+                    </div>
                 </div>
             </div>
         </div>

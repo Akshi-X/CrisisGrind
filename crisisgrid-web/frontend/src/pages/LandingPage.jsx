@@ -38,6 +38,9 @@ const LandingPage = () => {
                     <Link to="/auth/delivery" className="btn btn-delivery btn-lg">
                         🚚 Delivery Partner Login
                     </Link>
+                    <Link to="/auth/government" className="btn btn-ghost btn-sm" style={{ opacity: 0.65, fontSize: '0.82rem' }}>
+                        🏛️ Government Portal
+                    </Link>
                 </div>
 
                 {/* Impact Stats */}

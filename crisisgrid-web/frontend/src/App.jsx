@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import DonorDashboard from './pages/DonorDashboard';
 import NgoDashboard from './pages/NgoDashboard';
 import DeliveryDashboard from './pages/DeliveryDashboard';
+import GovernmentDashboard from './pages/GovernmentDashboard';
 
 const DashboardRedirect = () => {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ const DashboardRedirect = () => {
   if (user.role === 'donor') return <Navigate to="/donor" replace />;
   if (user.role === 'ngo') return <Navigate to="/ngo" replace />;
   if (user.role === 'delivery') return <Navigate to="/delivery" replace />;
+  if (user.role === 'government') return <Navigate to="/government" replace />;
   return <Navigate to="/" replace />;
 };
 
@@ -48,6 +50,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute role="delivery">
               <DeliveryDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/government"
+          element={
+            <ProtectedRoute role="government">
+              <GovernmentDashboard />
             </ProtectedRoute>
           }
         />

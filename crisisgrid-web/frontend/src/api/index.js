@@ -35,4 +35,10 @@ export const getActiveMission = () => API.get('/donations/missions/active');
 export const parseQuery = (query) => API.post('/ai/parse', { query });
 export const geocodeHint = (q) => API.get('/ai/geocode', { params: { q } });
 
+// Environment (Flood / Roadblock)
+export const getEnvironmentLayers = () => API.get('/environment');
+export const createEnvironmentLayer = (data) => API.post('/environment', data);
+export const updateEnvironmentLayer = (id, data) => API.put(`/environment/${id}`, data);
+export const deactivateEnvironmentLayer = (id) => API.patch(`/environment/${id}/deactivate`);
+
 export default API;

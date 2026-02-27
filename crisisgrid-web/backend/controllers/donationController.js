@@ -55,11 +55,17 @@ const createDonation = (req, res) => {
         }
 
         try {
-            const { foodName, description, foodType, servings, address } = req.body;
+            const { foodName, description, foodType, servings, address, expiryDays, expiryHours } = req.body;
 
             if (!foodName || !description || !foodType || !servings || !address) {
                 return res.status(400).json({ message: 'All fields are required' });
             }
+
+            // Compute expiry time from days + hours; default to 24h if both missing/zero
+            const days = parseInt(expiryDays) || 0;
+            const hours = parseInt(expiryHours) || 0;
+            const totalMs = (days * 24 + hours) * 60 * 60 * 1000;
+            const expiryTime = new Date(Date.now() + (totalMs > 0 ? totalMs : 24 * 60 * 60 * 1000));
 
             // Geocode the address
             const coords = await geocodeAddress(address);
@@ -82,6 +88,7 @@ const createDonation = (req, res) => {
                     type: 'Point',
                     coordinates: [coords.lng, coords.lat], // GeoJSON: [lng, lat]
                 },
+                expiryTime,
                 imageUrl,
             });
 
@@ -236,7 +243,7 @@ const getAvailableMissions = async (req, res) => {
         })
             .populate('donorId', 'name phone location address')
             .populate('claimedBy', 'organizationName name phone location address')
-            .sort({ claimedAt: -1 });
+            .sort({ claimedAt: 1 }); // oldest claim first (longest wait = highest priority)
 
         res.json(missions);
     } catch (err) {

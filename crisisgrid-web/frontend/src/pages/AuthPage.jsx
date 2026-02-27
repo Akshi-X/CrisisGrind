@@ -5,15 +5,18 @@ import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
 
 const AuthPage = () => {
-    const { role } = useParams(); // 'donor' | 'ngo' | 'delivery'
-    const [tab, setTab] = useState('register');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const { role } = useParams(); // 'donor' | 'ngo' | 'delivery' | 'government'
     const { login } = useAuth();
     const navigate = useNavigate();
     const isDonor = role === 'donor';
     const isNgo = role === 'ngo';
     const isDelivery = role === 'delivery';
+    const isGov = role === 'government';
+
+    // All roles can register; government defaults to register tab like any other role
+    const [tab, setTab] = useState('register');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
     const [form, setForm] = useState({
         name: '', email: '', password: '', phone: '', organizationName: '',
@@ -42,6 +45,7 @@ const AuthPage = () => {
             let path = '/donor';
             if (userData.role === 'ngo') path = '/ngo';
             if (userData.role === 'delivery') path = '/delivery';
+            if (userData.role === 'government') path = '/government';
 
             navigate(path, { replace: true });
         } catch (err) {
@@ -77,19 +81,25 @@ const AuthPage = () => {
                 {/* Role badge */}
                 <div style={{ textAlign: 'center', marginBottom: '24px' }}>
                     <span style={{ fontSize: '2.5rem' }}>
-                        {isDonor ? '🍱' : isNgo ? '🏥' : '🚚'}
+                        {isDonor ? '🍱' : isNgo ? '🏥' : isDelivery ? '🚚' : '🏛️'}
                     </span>
                     <h2 style={{ fontWeight: 800, fontSize: '1.5rem', marginTop: '10px' }}>
-                        {isDonor ? 'Donor' : isNgo ? 'NGO' : 'Delivery Partner'} Portal
+                        {isDonor ? 'Donor' : isNgo ? 'NGO' : isDelivery ? 'Delivery Partner' : 'Government'} Portal
                     </h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '4px' }}>
                         {isDonor ? 'Share your surplus food' :
                             isNgo ? 'Find food for your community' :
-                                'Deliver food and make an impact'}
+                                isDelivery ? 'Deliver food and make an impact' :
+                                    'Manage flood zones & road alerts'}
                     </p>
+                    {isGov && (
+                        <div style={{ marginTop: '10px', padding: '6px 14px', background: 'rgba(239,68,68,0.1)', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: '0.78rem', fontWeight: 600, display: 'inline-block' }}>
+                            🔒 Restricted Access
+                        </div>
+                    )}
                 </div>
 
-                {/* Tabs */}
+                {/* Tabs — shown for ALL roles including government */}
                 <div className="auth-tabs">
                     <button className={`auth-tab ${tab === 'register' ? 'active' : ''}`} onClick={() => setTab('register')}>
                         Register
@@ -104,15 +114,16 @@ const AuthPage = () => {
                         <>
                             <div className="form-group">
                                 <label className="form-label">
-                                    {isDonor ? 'Your Name / Business Name' : 'Contact Person Name'}
+                                    {isDonor ? 'Your Name / Business Name' : isGov ? 'Full Name' : 'Contact Person Name'}
                                 </label>
                                 <input
                                     className="form-input" name="name" required
-                                    placeholder={isDonor ? 'e.g., ABC Restaurant' : 'e.g., John Doe'}
+                                    placeholder={isDonor ? 'e.g., ABC Restaurant' : isGov ? 'e.g., Arjun Kumar' : 'e.g., John Doe'}
                                     value={form.name} onChange={handleChange}
                                 />
                             </div>
-                            {!isDonor && (
+                            {/* Org name — only for NGO, not for gov or delivery */}
+                            {isNgo && (
                                 <div className="form-group">
                                     <label className="form-label">NGO / Organization Name</label>
                                     <input
@@ -133,7 +144,7 @@ const AuthPage = () => {
                                         >
                                             <option value="bike">Bike</option>
                                             <option value="car">Car</option>
-                                            <option value="van">Van</option>
+                                            <option value="truck">Truck</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
@@ -155,14 +166,17 @@ const AuthPage = () => {
                                 </div>
                             )}
 
-                            <div className="form-group">
-                                <label className="form-label">Phone Number</label>
-                                <input
-                                    className="form-input" name="phone" type="tel"
-                                    placeholder="9876543210"
-                                    value={form.phone} onChange={handleChange}
-                                />
-                            </div>
+                            {/* Phone — only for donor/ngo/delivery, not gov */}
+                            {!isGov && (
+                                <div className="form-group">
+                                    <label className="form-label">Phone Number</label>
+                                    <input
+                                        className="form-input" name="phone" type="tel"
+                                        placeholder="9876543210"
+                                        value={form.phone} onChange={handleChange}
+                                    />
+                                </div>
+                            )}
                         </>
                     )}
 
@@ -198,20 +212,24 @@ const AuthPage = () => {
                         {!loading && (tab === 'register' ? 'Create Account' : 'Sign In')}
                     </button>
 
-                    <div className="auth-divider">
-                        <span>OR</span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
-                        <GoogleLogin
-                            onSuccess={handleGoogleSuccess}
-                            onError={() => setError('Google Authentication Failed')}
-                            theme="filled_black"
-                            text={tab === 'register' ? 'signup_with' : 'signin_with'}
-                            shape="pill"
-                            width="100%"
-                        />
-                    </div>
+                    {/* Google Login — only for non-government roles */}
+                    {!isGov && (
+                        <>
+                            <div className="auth-divider">
+                                <span>OR</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                <GoogleLogin
+                                    onSuccess={handleGoogleSuccess}
+                                    onError={() => setError('Google Authentication Failed')}
+                                    theme="filled_black"
+                                    text={tab === 'register' ? 'signup_with' : 'signin_with'}
+                                    shape="pill"
+                                    width="100%"
+                                />
+                            </div>
+                        </>
+                    )}
                 </form>
 
                 <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>

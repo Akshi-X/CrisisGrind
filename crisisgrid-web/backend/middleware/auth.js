@@ -33,4 +33,9 @@ const deliveryOnly = (req, res, next) => {
     res.status(403).json({ message: 'Access denied: delivery partners only' });
 };
 
-module.exports = { protect, donorOnly, ngoOnly, deliveryOnly };
+const governmentOnly = (req, res, next) => {
+    if (req.user && req.user.role === 'government') return next();
+    res.status(403).json({ message: 'Access denied: government users only' });
+};
+
+module.exports = { protect, donorOnly, ngoOnly, deliveryOnly, governmentOnly };

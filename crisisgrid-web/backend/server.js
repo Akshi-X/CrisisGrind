@@ -1,13 +1,35 @@
+const http = require('http');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
+const { Server } = require('socket.io');
 
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+
+// Socket.IO setup
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  },
+});
+
+// Inject io into the environment controller
+const envController = require('./controllers/environmentController');
+envController.init(io);
+
+io.on('connection', (socket) => {
+  console.log(`🔌 Socket connected: ${socket.id}`);
+  socket.on('disconnect', () => {
+    console.log(`❌ Socket disconnected: ${socket.id}`);
+  });
+});
 
 // Middleware
 app.use(cors());
@@ -26,6 +48,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/donations', require('./routes/donations'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/environment', require('./routes/environment'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -45,8 +68,9 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB connected');
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 CrisisGrid API running on http://localhost:${PORT}`);
+      console.log(`🔌 Socket.IO listening on port ${PORT}`);
     });
   })
   .catch((err) => {
